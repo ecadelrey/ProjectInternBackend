@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id_role Int    @id @default(autoincrement())
+  role    String @db.VarChar(100)
+
+  engineers Engineer[]
+}
+
+model Engineer {
+  SAP     Int    @id
+  id_role Int
+  name    String @db.VarChar(100)
+
+  role     Role      @relation(fields: [id_role], references: [id_role])
+  projects Project[]
+  tasks    Task[]
+}
+
+model Project {
+  id_project       Int           @id @default(autoincrement())
+  SAP              Int
+  project_name     String        @db.VarChar(200)
+  project_type     ProjectType
+  level            ProjectLevel
+  req_date         DateTime?     @db.Date
+  plan_start_date  DateTime?     @db.Date
+  plan_end_date    DateTime?     @db.Date
+  actual_start     DateTime?     @db.Date
+  actual_end       DateTime?     @db.Date
+  live_date        DateTime?     @db.Date
+  project_progress Int           @default(0)
+  remark           String?       @db.Text
+  status           ProjectStatus @default(TO_DO)
+
+  engineer Engineer @relation(fields: [SAP], references: [SAP])
+  tasks    Task[]
+}
+
+model Task {
+  id_task         Int           @id @default(autoincrement())
+  id_project      Int
+  SAP             Int
+  task_group      String        @db.VarChar(100)
+  task_detail     String        @db.VarChar(200)
+  plan_start_date DateTime?     @db.Date
+  plan_end_date   DateTime?     @db.Date
+  actual_start    DateTime?     @db.Date
+  actual_end      DateTime?     @db.Date
+  platform        String?       @db.VarChar(100)
+  task_progress   Int           @default(0)
+  status          ProjectStatus @default(TO_DO)
+
+  project  Project  @relation(fields: [id_project], references: [id_project], onDelete: Cascade)
+  engineer Engineer @relation(fields: [SAP], references: [SAP])
+}
+
+enum ProjectType {
+  NEW_PROJECT
+  OLD_PROJECT
+}
+
+enum ProjectLevel {
+  HIGH
+  MID
+  LOW
+}
+
+enum ProjectStatus {
+  TO_DO
+  IN_PROGRESS
+  COMPLETED
+}
