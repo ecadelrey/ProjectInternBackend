@@ -1,16 +1,17 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { db } from "../db.js";
 
 // ============================================
 // GET ALL TASK GROUPS
 // ============================================
 export const getTaskGroups = async (req, res) => {
   try {
-    const groups = await prisma.taskGroup.findMany({
-      select: { id_group: true, task_group: true },
-      orderBy: { id_group: "asc" },
-    });
-    res.status(200).json(groups);
+    const result = await db.query(
+      `SELECT "id_group", "task_group"
+       FROM "TaskGroup"
+       ORDER BY "id_group" ASC`
+    );
+
+    res.status(200).json(result.rows);
   } catch (error) {
     console.error("Error getTaskGroups:", error);
     res.status(500).json({ msg: error.message });
@@ -23,24 +24,25 @@ export const getTaskGroups = async (req, res) => {
 export const getTaskGroupById = async (req, res) => {
   try {
     const { id } = req.params;
+
     if (!id) return res.status(400).json({ msg: "Task group ID is required" });
 
-    const taskGroupId = Number(id);
-    if (isNaN(taskGroupId)) return res.status(400).json({ msg: "Invalid task group ID" });
+    const result = await db.query(
+      `SELECT "id_group", "task_group"
+       FROM "TaskGroup"
+       WHERE "id_group" = $1`,
+      [id]
+    );
 
-    const group = await prisma.taskGroup.findUnique({
-      where: { id_group: taskGroupId },
-      select: { id_group: true, task_group: true },
-    });
+    if (result.rows.length === 0)
+      return res.status(404).json({ msg: "Task group not found" });
 
-    if (!group) return res.status(404).json({ msg: "Task group not found" });
-    res.status(200).json(group);
+    res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error("Error getTaskGroupById:", error);
     res.status(500).json({ msg: error.message });
   }
 };
-
 
 // ============================================
 // CREATE TASK GROUP
@@ -49,18 +51,26 @@ export const createTaskGroup = async (req, res) => {
   try {
     const { task_group } = req.body;
 
-    if (!task_group) return res.status(400).json({ msg: "Task group name is required" });
+    if (!task_group)
+      return res.status(400).json({ msg: "Task group name is required" });
 
-    const exist = await prisma.taskGroup.findUnique({
-      where: { task_group },
-    });
-    if (exist) return res.status(400).json({ msg: "Task group already exists" });
+    // Cek duplikasi
+    const exist = await db.query(
+      `SELECT * FROM "TaskGroup" WHERE "task_group" = $1`,
+      [task_group]
+    );
 
-    const newGroup = await prisma.taskGroup.create({
-      data: { task_group },
-    });
+    if (exist.rows.length > 0)
+      return res.status(400).json({ msg: "Task group already exists" });
 
-    res.status(201).json(newGroup);
+    const insertResult = await db.query(
+      `INSERT INTO "TaskGroup" ("task_group")
+       VALUES ($1)
+       RETURNING "id_group", "task_group"`,
+      [task_group]
+    );
+
+    res.status(201).json(insertResult.rows[0]);
   } catch (error) {
     console.error("Error createTaskGroup:", error);
     res.status(500).json({ msg: error.message });
@@ -75,19 +85,25 @@ export const updateTaskGroup = async (req, res) => {
     const { id } = req.params;
     const { task_group } = req.body;
 
-    if (!task_group) return res.status(400).json({ msg: "Task group name is required" });
+    if (!task_group)
+      return res.status(400).json({ msg: "Task group name is required" });
 
-    const existing = await prisma.taskGroup.findUnique({
-      where: { id_group: Number(id) },
-    });
-    if (!existing) return res.status(404).json({ msg: "Task group not found" });
+    const exist = await db.query(
+      `SELECT * FROM "TaskGroup" WHERE "id_group" = $1`,
+      [id]
+    );
+    if (exist.rows.length === 0)
+      return res.status(404).json({ msg: "Task group not found" });
 
-    const updated = await prisma.taskGroup.update({
-      where: { id_group: Number(id) },
-      data: { task_group },
-    });
+    const updateResult = await db.query(
+      `UPDATE "TaskGroup"
+       SET "task_group" = $1
+       WHERE "id_group" = $2
+       RETURNING "id_group", "task_group"`,
+      [task_group, id]
+    );
 
-    res.status(200).json(updated);
+    res.status(200).json(updateResult.rows[0]);
   } catch (error) {
     console.error("Error updateTaskGroup:", error);
     res.status(500).json({ msg: error.message });
@@ -101,14 +117,19 @@ export const deleteTaskGroup = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = await prisma.taskGroup.findUnique({
-      where: { id_group: Number(id) },
-    });
-    if (!existing) return res.status(404).json({ msg: "Task group not found" });
+    const exist = await db.query(
+      `SELECT * FROM "TaskGroup" WHERE "id_group" = $1`,
+      [id]
+    );
 
-    await prisma.taskGroup.delete({
-      where: { id_group: Number(id) },
-    });
+    if (exist.rows.length === 0)
+      return res.status(404).json({ msg: "Task group not found" });
+
+    await db.query(
+      `DELETE FROM "TaskGroup"
+       WHERE "id_group" = $1`,
+      [id]
+    );
 
     res.status(200).json({ msg: "Task group deleted successfully" });
   } catch (error) {
